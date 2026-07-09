@@ -17,7 +17,7 @@
 
   // ---------- state ----------
   const defaults = () => ({
-    settings: { birthDate: null, lifeExpectancy: 90, userName: "" },
+    settings: { birthDate: null, lifeExpectancy: 90, userName: "", consciousAge: 8 },
     days: {},          // "YYYY-MM-DD": { tasks:[{id,text,done,time}] }
     notes: "",
     goals: [],         // [{id,text,done}]
@@ -203,6 +203,7 @@
   function buildLifeGrid() {
     const now = today();
     const curWeek = M.hasBirth ? Math.floor((now - M.origin)/MS_WEEK) : -1;
+    const consciousWeeks = Math.round((state.settings.consciousAge || 0) * 52.1775);
     const root = document.createElement("div");
     root.className = "wgrid";
     const cols = 52;
@@ -223,8 +224,17 @@
         const lv = weekLevel(ws);
         if (lv) cell.dataset.lv = lv;
         if (M.hasBirth) {
-          if (idx > curWeek) cell.classList.add("future");
+          if (idx > curWeek) {
+            cell.classList.add("future");           // ещё не прожито
+          } else if (!lv) {
+            // прожитая неделя без задач: покажем как «прожито»,
+            // а детство (до осознанного возраста) — приглушённо
+            cell.classList.add(idx < consciousWeeks ? "childhood" : "lived");
+          }
+          if (idx < consciousWeeks) cell.classList.add("child-band");
           if (idx === curWeek) cell.classList.add("today");
+        } else if (!lv) {
+          cell.classList.add("lived");
         }
         row.appendChild(cell);
       }
@@ -270,8 +280,7 @@
       ? "Добавьте задачи по одной. Нет выбора — только ваши слова."
       : `${DOW[dowMon(d)]}, выбранный день. Записывайте, что делали.`;
 
-    const tasks = dayTasks(k);
-    const done = tasks.filter(t=>t.done).length;
+    const tasks = dayTasks(k).slice().sort(byTime);
     $("tasksBadge").textContent = `${tasks.length} ${plural(tasks.length,"задача","задачи","задач")}`;
 
     const list = $("taskList");
@@ -279,17 +288,26 @@
     tasks.forEach(t => {
       const li = document.createElement("li");
       li.className = "task" + (t.done ? " done" : "");
-      li.innerHTML = `<span class="time">${t.time||""}</span>
-        <span class="check">${t.done?"✓":""}</span>
-        <span class="txt"></span>
+      li.innerHTML = `<input type="time" class="time-edit" value="${t.time||""}" title="Время (необязательно) — можно изменить">
+        <span class="check" title="Отметить выполнение">${t.done?"✓":""}</span>
+        <span class="txt" contenteditable="true" spellcheck="false" title="Нажмите, чтобы изменить"></span>
         <button class="del" title="Удалить">✕</button>`;
       li.querySelector(".txt").textContent = t.text;
       li.querySelector(".check").onclick = () => { t.done = !t.done; commit(); };
       li.querySelector(".del").onclick = () => {
         state.days[k].tasks = dayTasks(k).filter(x=>x.id!==t.id); commit();
       };
+      const te = li.querySelector(".time-edit");
+      te.onchange = () => { t.time = te.value; save(); renderTasks(); };
+      const tx = li.querySelector(".txt");
+      tx.onblur = () => { const v = tx.textContent.trim(); if (v) t.text = v; else tx.textContent = t.text; save(); };
+      tx.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); tx.blur(); } };
       list.appendChild(li);
     });
+  }
+  function byTime(a, b) {
+    if (a.time && b.time) return a.time.localeCompare(b.time);
+    if (a.time) return -1; if (b.time) return 1; return 0;
   }
 
   function commit() {
@@ -314,12 +332,10 @@
     }
   }
 
-  function addTask(text) {
+  function addTask(text, time) {
     const k = sel.dayIso;
     if (!state.days[k]) state.days[k] = { tasks: [] };
-    const now = new Date();
-    const time = k === iso(today()) ? `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}` : "";
-    state.days[k].tasks.push({ id: uid(), text, done: true, time });
+    state.days[k].tasks.push({ id: uid(), text, done: true, time: time || "" });
     save(); renderTasks(); updateCellFor(k); renderRightbar(); renderStreakCard();
   }
 
@@ -624,6 +640,8 @@
     $("expRangeModal").value = state.settings.lifeExpectancy;
     $("expValModal").textContent = state.settings.lifeExpectancy;
     $("userName").value = state.settings.userName || "";
+    $("consciousRange").value = state.settings.consciousAge;
+    $("consciousVal").textContent = state.settings.consciousAge;
     $("settingsModal").classList.remove("hidden");
   }
   const closeSettings = () => $("settingsModal").classList.add("hidden");
@@ -676,7 +694,13 @@
       if (state.ui.scope === "life") {
         const ws = startOfWeek(d); let tot=0; for(let i=0;i<7;i++) tot+=doneCount(iso(addDays(ws,i)));
         const wi = M.hasBirth ? Math.round((ws-M.origin)/MS_WEEK)+1 : 0;
-        txt = `Неделя ${wi} · <b>${tot}</b> задач<br>${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+        let tag = "";
+        if (M.hasBirth) {
+          if (c.classList.contains("future")) tag = " · ещё впереди";
+          else if (c.classList.contains("child-band")) tag = " · детство";
+          else tag = " · прожито";
+        }
+        txt = `Неделя ${wi}${tag} · <b>${tot}</b> задач<br>${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
       } else {
         txt = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} · <b>${doneCount(k)}</b> задач`;
       }
@@ -697,7 +721,13 @@
     $("overtime").addEventListener("mouseleave", () => $("tooltip").classList.add("hidden"));
 
     // task form
-    $("taskForm").addEventListener("submit", e => { e.preventDefault(); const v = $("taskInput").value.trim(); if(!v) return; addTask(v); $("taskInput").value=""; });
+    $("taskForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const v = $("taskInput").value.trim(); if (!v) return;
+      const tm = $("taskTime") ? $("taskTime").value : "";
+      addTask(v, tm);
+      $("taskInput").value = ""; if ($("taskTime")) $("taskTime").value = "";
+    });
 
     // scope / range
     $("scope").addEventListener("change", e => { state.ui.scope = e.target.value; save(); renderGrid(); scrollToCurrent(); });
@@ -747,6 +777,8 @@
     $("expRangeModal").addEventListener("input", e => { $("expValModal").textContent = e.target.value; });
     $("expRangeModal").addEventListener("change", e => { state.settings.lifeExpectancy = +e.target.value; save(); renderAll(); });
     $("userName").addEventListener("change", e => { state.settings.userName = e.target.value.trim(); save(); renderGreeting(); updateAvatar(); });
+    $("consciousRange").addEventListener("input", e => { $("consciousVal").textContent = e.target.value; });
+    $("consciousRange").addEventListener("change", e => { state.settings.consciousAge = +e.target.value; save(); renderGrid(); });
     $("avatar").onclick = openSettings;
 
     // export/import/reset

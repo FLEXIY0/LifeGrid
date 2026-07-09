@@ -172,9 +172,10 @@
           <ul class="tasklist" id="taskList"></ul>
 
           <form class="taskadd" id="taskForm" autocomplete="off">
+            <input type="time" id="taskTime" class="time-edit form-time" title="Время (необязательно)" />
             <input type="text" id="taskInput" placeholder="Введите задачу и нажмите Enter…" maxlength="160" />
           </form>
-          <p class="muted sm hint">Нажмите Enter для добавления задачи. Чем больше выполненных задач — тем ярче горит день.</p>
+          <p class="muted sm hint">Время указывать необязательно — его можно добавить или изменить прямо в списке. Чем больше выполненных задач — тем ярче горит день.</p>
         </div>
 
         <!-- Life over time -->
@@ -262,6 +263,10 @@
         <label class="field">
           <span>Ожидаемая продолжительность: <b id="expValModal">90</b> лет</span>
           <input type="range" id="expRangeModal" min="50" max="100" step="1" value="90" class="range" />
+        </label>
+        <label class="field">
+          <span>Осознанный возраст (детство до): <b id="consciousVal">8</b> лет</span>
+          <input type="range" id="consciousRange" min="0" max="18" step="1" value="8" class="range" />
         </label>
         <label class="field">
           <span>Имя (для приветствия)</span>

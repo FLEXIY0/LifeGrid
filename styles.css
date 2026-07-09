@@ -286,7 +286,9 @@ body {
 .cell[data-lv="2"]{ background: var(--lv2); }
 .cell[data-lv="3"]{ background: var(--lv3); }
 .cell[data-lv="4"]{ background: var(--lv4); }
-.cell.future { opacity: .3; cursor: default; }
+.cell.future { background: var(--lv0); opacity: .16; cursor: default; }   /* ещё не прожито */
+.cell.lived { background: #27362b; }                                     /* прожито, без задач */
+.cell.childhood { background: #1a231d; }                                 /* детство (до осознанного возраста) */
 .cell.blank { background: transparent; outline: none; cursor: default; }
 .cell.today { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
 .cell.selected { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--blue); z-index: 2; }
@@ -311,7 +313,17 @@ body {
   background: var(--panel-2); border: 1px solid var(--border-soft);
   border-radius: 10px; padding: 11px 12px; margin-bottom: 8px;
 }
-.task .time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 42px; }
+.time-edit {
+  width: 74px; background: transparent; border: 1px solid transparent;
+  color: var(--muted); font-family: inherit; font-size: 12px;
+  font-variant-numeric: tabular-nums; padding: 3px 5px; border-radius: 6px;
+  color-scheme: dark; cursor: pointer;
+}
+.time-edit:hover { border-color: var(--border); }
+.time-edit:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.task .txt[contenteditable] { outline: none; cursor: text; border-radius: 4px; padding: 1px 3px; }
+.task .txt[contenteditable]:focus { background: var(--bg-2); box-shadow: 0 0 0 2px rgba(46,160,67,.25); }
+.form-time { border: 1px solid var(--border); flex-shrink: 0; }
 .task .check {
   width: 18px; height: 18px; border-radius: 6px; flex-shrink: 0;
   border: 1px solid var(--border); cursor: pointer; display: grid; place-items: center;
@@ -323,10 +335,12 @@ body {
 .task .del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; }
 .task .del:hover { color: var(--danger); }
 
-.taskadd input {
-  width: 100%; background: var(--bg-2); border: 1px solid var(--border);
+.taskadd { display: flex; gap: 8px; align-items: stretch; }
+.taskadd #taskInput {
+  flex: 1; background: var(--bg-2); border: 1px solid var(--border);
   border-radius: 10px; color: var(--text); padding: 12px 14px; font-size: 14px; font-family: inherit;
 }
+.taskadd #taskTime { width: 92px; border-radius: 10px; padding: 0 10px; font-size: 13px; }
 .taskadd input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46,160,67,.15); }
 .hint { margin: 8px 2px 0; }
 
