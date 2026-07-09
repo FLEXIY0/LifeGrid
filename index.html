@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LIFE GRID — карта жизни по неделям</title>
+  <meta name="description" content="Карта вашей жизни по неделям в стиле GitHub. Отмечайте выполненные задачи — и каждый день загорается ярче." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ======= HEADER ======= -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+        <h1>LIFE&nbsp;GRID</h1>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="btn ghost" id="jumpTodayBtn" title="Перейти к текущей неделе">Сегодня</button>
+        <button class="btn ghost icon" id="settingsBtn" title="Настройки">⚙</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- ======= LEFT: LIFE GRID ======= -->
+      <section class="panel grid-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Ваша сетка жизни</h2>
+            <p class="muted" id="gridSubtitle">Каждая ячейка — одна неделя. Время течёт сверху вниз.</p>
+          </div>
+          <div class="zoom">
+            <button class="btn ghost icon" id="zoomOut" title="Уменьшить">−</button>
+            <span id="zoomLabel">100%</span>
+            <button class="btn ghost icon" id="zoomIn" title="Увеличить">+</button>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats" id="stats"></div>
+
+        <!-- Progress bar -->
+        <div class="lifeprogress">
+          <div class="lifeprogress-track"><div class="lifeprogress-fill" id="lifeFill"></div></div>
+          <div class="lifeprogress-meta">
+            <span id="lifeProgressText">—</span>
+            <span id="lifeRemainingText" class="muted"></span>
+          </div>
+        </div>
+
+        <!-- The grid -->
+        <div class="grid-scroll" id="gridScroll">
+          <div class="grid-inner" id="gridInner"></div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+          <span class="muted">Меньше</span>
+          <span class="lv lv0"></span>
+          <span class="lv lv1"></span>
+          <span class="lv lv2"></span>
+          <span class="lv lv3"></span>
+          <span class="muted">Больше</span>
+        </div>
+      </section>
+
+      <!-- ======= RIGHT: DETAIL PANEL ======= -->
+      <aside class="panel detail-panel" id="detailPanel">
+        <div class="detail-empty" id="detailEmpty">
+          <div class="detail-empty-art">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <h3>Выберите неделю</h3>
+          <p class="muted">Нажмите на любую ячейку в сетке, чтобы открыть её 7 дней и записать, что вы делали.</p>
+        </div>
+
+        <div class="detail-body hidden" id="detailBody">
+          <div class="detail-head">
+            <button class="btn ghost icon" id="weekPrev" title="Предыдущая неделя">‹</button>
+            <div class="detail-head-title">
+              <h3 id="weekTitle">Неделя</h3>
+              <p class="muted" id="weekRange"></p>
+            </div>
+            <button class="btn ghost icon" id="weekNext" title="Следующая неделя">›</button>
+          </div>
+
+          <div class="daytabs" id="dayTabs"></div>
+
+          <div class="day-editor">
+            <div class="day-editor-head">
+              <h4 id="dayTitle">День</h4>
+              <span class="badge" id="dayCount">0 задач</span>
+            </div>
+
+            <ul class="tasklist" id="taskList"></ul>
+
+            <form class="taskadd" id="taskForm" autocomplete="off">
+              <input type="text" id="taskInput" placeholder="Что вы сделали? Нажмите Enter…" maxlength="140" />
+              <button class="btn primary" type="submit">Добавить</button>
+            </form>
+            <p class="hint muted">Чем больше выполненных задач за день — тем ярче горит ячейка недели.</p>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="foot muted">
+      Жизнь — это сетка. Каждый день — ячейка. Делай так, чтобы они имели значение.
+    </footer>
+  </div>
+
+  <!-- ======= SETTINGS MODAL ======= -->
+  <div class="modal-backdrop hidden" id="settingsModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Настройки</h3>
+        <button class="btn ghost icon" id="settingsClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span>Дата рождения</span>
+          <input type="date" id="birthDate" />
+        </label>
+        <label class="field">
+          <span>Ожидаемая продолжительность жизни: <b id="lifeExpVal">90</b> лет</span>
+          <input type="range" id="lifeExpectancy" min="50" max="100" step="1" value="90" />
+        </label>
+        <div class="modal-note muted">
+          Данные хранятся локально в этом браузере (localStorage). Ничего не отправляется на сервер.
+        </div>
+        <div class="modal-actions">
+          <button class="btn ghost" id="exportBtn">Экспорт данных</button>
+          <button class="btn ghost" id="importBtn">Импорт</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+          <button class="btn danger ghost" id="resetBtn">Сбросить всё</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="tooltip hidden" id="tooltip"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
