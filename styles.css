@@ -418,6 +418,45 @@ body {
 .modal-note { font-size: 12px; margin: 4px 0 16px; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ---------- fullscreen life map ---------- */
+.fm-overlay {
+  position: fixed; inset: 0; z-index: 80;
+  background:
+    radial-gradient(1000px 500px at 100% -5%, rgba(46,160,67,0.10), transparent 55%),
+    var(--bg);
+  display: flex; flex-direction: column;
+  padding: 14px clamp(12px, 2vw, 24px) 12px;
+  --fmcell: 12px; --fmgap: 2px;
+}
+.fm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.fm-head-title h2 { margin: 0 0 3px; font-size: 19px; }
+.fm-head-title p { margin: 0; }
+.fm-head-right { display: flex; align-items: center; gap: 16px; }
+.fm-legend { margin-bottom: 0; }
+.fm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fm-topaxis { display: flex; gap: var(--fmgap); margin-bottom: 5px; height: 14px; }
+.fm-topaxis span {
+  width: var(--fmcell); flex-shrink: 0; font-size: 10px; color: var(--muted);
+  text-align: left; white-space: nowrap; overflow: visible; font-variant-numeric: tabular-nums;
+}
+.fm-grid { flex: 1; min-height: 0; display: flex; gap: var(--fmgap); align-content: flex-start; }
+.fm-col { display: flex; flex-direction: column; gap: var(--fmgap); flex-shrink: 0; }
+.fm-cell {
+  width: var(--fmcell); height: var(--fmcell); border-radius: 2px;
+  background: var(--lv0); cursor: pointer; flex-shrink: 0;
+  outline: 1px solid rgba(255,255,255,.03); outline-offset: -1px;
+  transition: transform .06s;
+}
+.fm-cell[data-lv="1"]{ background: var(--lv1); }
+.fm-cell[data-lv="2"]{ background: var(--lv2); }
+.fm-cell[data-lv="3"]{ background: var(--lv3); }
+.fm-cell[data-lv="4"]{ background: var(--lv4); }
+.fm-cell.future { opacity: .16; cursor: default; }
+.fm-cell.today { outline: 2px solid var(--accent-bright); outline-offset: 1px; z-index: 2; }
+.fm-cell:not(.future):hover { transform: scale(1.7); z-index: 3; }
+.fm-foot { margin-top: 8px; text-align: center; }
+@media (max-width: 640px) { .fm-head-right .fm-legend { display: none; } }
+
 /* ---------- tooltip + toast ---------- */
 .tooltip {
   position: fixed; z-index: 100; pointer-events: none;

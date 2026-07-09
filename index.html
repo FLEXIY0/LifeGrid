@@ -47,6 +47,7 @@
       <nav class="nav">
         <div class="nav-group-title">ЖИЗНЬ</div>
         <button class="nav-item active" data-view="grid"><span class="ni-ic">▦</span> Сетка (Grid)</button>
+        <button class="nav-item" id="openFullmap"><span class="ni-ic">⛶</span> Карта жизни</button>
         <button class="nav-item" data-view="timeline"><span class="ni-ic">≣</span> Таймлайн</button>
         <button class="nav-item" data-view="stats"><span class="ni-ic">▤</span> Статистика</button>
         <button class="nav-item" data-view="milestones"><span class="ni-ic">⚑</span> Вехи</button>
@@ -280,6 +281,30 @@
           <button class="btn danger ghost" id="resetBtn">Сбросить всё</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= FULLSCREEN LIFE MAP ================= -->
+  <div class="fm-overlay hidden" id="fullmapOverlay">
+    <div class="fm-head">
+      <div class="fm-head-title">
+        <h2>Карта жизни целиком</h2>
+        <p class="muted sm" id="fmSub">Вся ваша жизнь на одном экране. Нажмите на любую ячейку, чтобы открыть этот день.</p>
+      </div>
+      <div class="fm-head-right">
+        <div class="grid-legend fm-legend">
+          <span class="gl"><i class="lv lv0"></i> 0</span>
+          <span class="gl"><i class="lv lv1"></i> 1–2</span>
+          <span class="gl"><i class="lv lv2"></i> 3–4</span>
+          <span class="gl"><i class="lv lv4"></i> 5+</span>
+        </div>
+        <button class="btn ghost" id="fmClose">✕ Закрыть</button>
+      </div>
+    </div>
+    <div class="fm-body">
+      <div class="fm-topaxis" id="fmAxis"></div>
+      <div class="fm-grid" id="fmGrid"></div>
+      <div class="fm-foot muted sm" id="fmFoot"></div>
     </div>
   </div>
 

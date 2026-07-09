@@ -750,6 +750,32 @@
 
     // nav
     document.querySelectorAll(".nav-item[data-view]").forEach(n => n.onclick = () => switchView(n.dataset.view));
+
+    // fullscreen life map
+    $("openFullmap").onclick = openFullmap;
+    $("fmClose").onclick = closeFullmap;
+    $("fmGrid").addEventListener("click", e => {
+      const c = e.target.closest(".fm-cell");
+      if (!c || c.classList.contains("future")) return;
+      const date = c.dataset.date;
+      closeFullmap();
+      if (state.ui.scope !== "year") { state.ui.scope = "year"; $("scope").value = "year"; save(); renderGrid(); }
+      switchView("grid");
+      selectDay(date);
+      const card = $("taskList").closest(".card");
+      if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    $("fmGrid").addEventListener("mousemove", e => {
+      const c = e.target.closest(".fm-cell"); const tip = $("tooltip");
+      if (!c) { tip.classList.add("hidden"); return; }
+      const d = parse(c.dataset.date), idx = +c.dataset.idx;
+      let tot = 0; for (let i=0;i<7;i++) tot += doneCount(iso(addDays(parse(c.dataset.date),i)));
+      let tag = c.classList.contains("future") ? " · ещё впереди" : (c.classList.contains("child-band") ? " · детство" : " · прожито");
+      tip.innerHTML = `Неделя ${idx+1}${tag} · <b>${tot}</b> задач<br>${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+      tip.style.left = e.clientX+"px"; tip.style.top = e.clientY+"px"; tip.classList.remove("hidden");
+    });
+    $("fmGrid").addEventListener("mouseleave", () => $("tooltip").classList.add("hidden"));
+    window.addEventListener("resize", () => { if (!$("fullmapOverlay").classList.contains("hidden")) sizeFullmap(); });
     $("openSettings").onclick = openSettings;
     $("exportNav").onclick = doExport;
     $("aboutNav").onclick = () => toast("LIFE GRID · карта вашей жизни. Данные хранятся локально.");
@@ -794,13 +820,79 @@
 
     $("howCount").onclick = () => toast("Каждая выполненная задача повышает яркость дня: 0 → 1–2 → 3–4 → 5–6 → 7+.");
 
-    document.addEventListener("keydown", e => { if (e.key === "Escape") closeSettings(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { closeSettings(); closeFullmap(); } });
   }
 
   function scrollToCurrent() {
     if (!M.hasBirth) return;
     const c = $("lifegridWrap").querySelector(".cell.today");
     if (c) c.scrollIntoView({ block: "center" });
+  }
+
+  // ===========================================================
+  //  FULLSCREEN LIFE MAP  (вся жизнь на одном экране, без скролла)
+  //  Годы идут по горизонтали (колонки), недели — вниз (52 в колонке).
+  // ===========================================================
+  const FM_ROWS = 52;
+  function openFullmap() {
+    if (!M.hasBirth) { openSettings(); return; }
+    $("fullmapOverlay").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    buildFullmap();
+    sizeFullmap();
+  }
+  function closeFullmap() {
+    $("fullmapOverlay").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  function buildFullmap() {
+    const cols = M.years, now = today();
+    const curWeek = Math.floor((now - M.origin) / MS_WEEK);
+    const consciousWeeks = Math.round((state.settings.consciousAge || 0) * 52.1775);
+    const grid = $("fmGrid"), axis = $("fmAxis");
+    grid.innerHTML = ""; axis.innerHTML = "";
+    const birthYear = M.origin.getFullYear();
+    for (let c = 0; c < cols; c++) {
+      const lab = document.createElement("span");
+      lab.textContent = c % 10 === 0 ? String(c) : "";
+      axis.appendChild(lab);
+      const col = document.createElement("div");
+      col.className = "fm-col";
+      for (let r = 0; r < FM_ROWS; r++) {
+        const idx = c * FM_ROWS + r;
+        const ws = addDays(M.origin, idx * 7);
+        const cell = document.createElement("div");
+        cell.className = "fm-cell";
+        cell.dataset.date = iso(ws);
+        cell.dataset.idx = idx;
+        const lv = weekLevel(ws);
+        if (lv) cell.dataset.lv = lv;                 // пустые дни остаются пустыми
+        if (idx > curWeek) cell.classList.add("future");
+        if (idx < consciousWeeks) cell.classList.add("child-band");
+        if (idx === curWeek) cell.classList.add("today");
+        col.appendChild(cell);
+      }
+      grid.appendChild(col);
+    }
+    const livedWeeks = Math.max(0, curWeek);
+    $("fmFoot").textContent = `Возраст ${birthYear ? "" : ""}${(livedWeeks/52.1775).toFixed(1)} лет · прожито ${livedWeeks.toLocaleString("ru")} из ${M.totalWeeks.toLocaleString("ru")} недель · по горизонтали — годы, по вертикали — недели года`;
+  }
+
+  // Подгоняем размер ячейки так, чтобы вся сетка помещалась в экран без прокрутки.
+  function sizeFullmap() {
+    const grid = $("fmGrid");
+    const gap = 2;
+    const cols = M.years, rows = FM_ROWS;
+    const availW = grid.clientWidth;
+    const availH = grid.clientHeight;
+    if (!availW || !availH) return;
+    const cellW = (availW - (cols - 1) * gap) / cols;
+    const cellH = (availH - (rows - 1) * gap) / rows;
+    const cell = Math.max(3, Math.floor(Math.min(cellW, cellH)));
+    const ov = $("fullmapOverlay");
+    ov.style.setProperty("--fmcell", cell + "px");
+    ov.style.setProperty("--fmgap", gap + "px");
   }
   function setZoom(z) {
     state.ui.zoom = Math.min(2, Math.max(0.6, Math.round(z*10)/10));
