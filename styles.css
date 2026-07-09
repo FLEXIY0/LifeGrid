@@ -286,9 +286,8 @@ body {
 .cell[data-lv="2"]{ background: var(--lv2); }
 .cell[data-lv="3"]{ background: var(--lv3); }
 .cell[data-lv="4"]{ background: var(--lv4); }
-.cell.future { background: var(--lv0); opacity: .16; cursor: default; }   /* ещё не прожито */
-.cell.lived { background: #27362b; }                                     /* прожито, без задач */
-.cell.childhood { background: #1a231d; }                                 /* детство (до осознанного возраста) */
+.cell.future { opacity: .3; cursor: default; }   /* ещё не прожито — приглушено, но без заливки */
+/* Прожитые и детские дни без задач остаются пустыми (var(--lv0)) — не подкрашиваем. */
 .cell.blank { background: transparent; outline: none; cursor: default; }
 .cell.today { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
 .cell.selected { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--blue); z-index: 2; }
