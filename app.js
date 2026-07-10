@@ -142,9 +142,33 @@
     $("zoomLabel").textContent = Math.round(state.ui.zoom*100) + "%";
     const wrap = $("lifegridWrap");
     wrap.innerHTML = "";
-    if (state.ui.scope === "life") wrap.appendChild(buildLifeGrid());
-    else wrap.appendChild(buildYearGrid());
+    if (state.ui.scope === "life") {
+      wrap.classList.add("fit");
+      wrap.appendChild(buildLifeGrid());
+      fitLifeGrid();
+    } else {
+      wrap.classList.remove("fit");
+      wrap.appendChild(buildYearGrid());
+    }
     restoreSelected();
+  }
+
+  // Подгоняем размер ячейки так, чтобы все годы жизни (вертикально)
+  // помещались в видимую область экрана без прокрутки — даже 100 лет на 1080p.
+  function fitLifeGrid() {
+    const wrap = $("lifegridWrap");
+    const grid = wrap.querySelector(".wgrid");
+    if (!grid) return;
+    const gap = 1, cols = 52, labelW = 26, years = M.years;
+    const availW = wrap.clientWidth || 800;
+    // высота: от верха сетки до низа окна, с запасом на подпись/легенду карточки
+    const top = wrap.getBoundingClientRect().top;
+    const availH = Math.max(300, window.innerHeight - Math.max(top, 0) - 90);
+    const byW = (availW - labelW - (cols - 1) * gap) / cols;
+    const byH = (availH - (years - 1) * (gap)) / years - gap;
+    const cell = Math.max(3, Math.min(14, Math.floor(Math.min(byW, byH))));
+    grid.style.setProperty("--wc", cell + "px");
+    grid.style.setProperty("--wg", gap + "px");
   }
 
   // ---- ANNUAL VIEW: weeks flow top->bottom, 7 weekday columns ----
@@ -212,7 +236,7 @@
       row.className = "wrow" + (y % 10 === 0 ? " decade" : "");
       const yr = document.createElement("span");
       yr.className = "yr";
-      yr.textContent = y % 5 === 0 ? String(y) : "";
+      yr.textContent = y % 10 === 0 ? String(y) : "";
       row.appendChild(yr);
       for (let c = 0; c < cols; c++) {
         const idx = y*cols + c;
@@ -775,7 +799,10 @@
       tip.style.left = e.clientX+"px"; tip.style.top = e.clientY+"px"; tip.classList.remove("hidden");
     });
     $("fmGrid").addEventListener("mouseleave", () => $("tooltip").classList.add("hidden"));
-    window.addEventListener("resize", () => { if (!$("fullmapOverlay").classList.contains("hidden")) sizeFullmap(); });
+    window.addEventListener("resize", () => {
+      if (!$("fullmapOverlay").classList.contains("hidden")) sizeFullmap();
+      if (state.ui.scope === "life") fitLifeGrid();
+    });
     $("openSettings").onclick = openSettings;
     $("exportNav").onclick = doExport;
     $("aboutNav").onclick = () => toast("LIFE GRID · карта вашей жизни. Данные хранятся локально.");

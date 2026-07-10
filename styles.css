@@ -270,11 +270,16 @@ body {
   padding-top: 1px; white-space: nowrap;
 }
 
-/* full-life grid: rows = years (top->bottom), cols = weeks */
-.wgrid { display: inline-block; }
-.wrow { display: flex; gap: var(--gap); align-items: center; height: calc(var(--cell) * var(--zoom) + var(--gap)); }
-.wrow .yr { width: 40px; min-width: 40px; text-align: right; padding-right: 8px; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+/* full-life grid: rows = years (top->bottom), cols = weeks.
+   Ячейки авто-подгоняются (--wc/--wg из JS) так, чтобы вся жизнь
+   помещалась на экран без прокрутки. */
+.wgrid { display: inline-block; --wc: 10px; --wg: 1px; }
+.wrow { display: flex; gap: var(--wg); align-items: center; height: calc(var(--wc) + var(--wg)); }
+.wrow .yr { width: 26px; min-width: 26px; text-align: right; padding-right: 6px; font-size: 9px; color: var(--dim); font-variant-numeric: tabular-nums; line-height: 1; }
 .wrow.decade .yr { color: var(--text-2); font-weight: 700; }
+.wgrid .cell { width: var(--wc); height: var(--wc); border-radius: 2px; }
+.wgrid .cell.today { outline-width: 1px; }
+.lifegrid-wrap.fit { max-height: none; overflow: visible; }
 
 .cell {
   width: calc(var(--cell) * var(--zoom)); height: calc(var(--cell) * var(--zoom));
