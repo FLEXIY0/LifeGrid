@@ -21,6 +21,7 @@ Worth saying plainly — this is a well-built ROM, not a sloppy one:
 - **zram is enabled unconditionally**: `init.target.rc:103` calls
   `swapon_all /fstab.smdk4x12`, and the fstab defines
   `/dev/block/zram0 … zramsize=419430400` (400 MB). No property gates it.
+- **Signature spoofing is already built in** — both halves of it. See below.
 - Magisk is baked into `/system/app`, so the device is rooted out of the box.
 - `ro.egl.destroy_after_detach=true` — works around a real Mali blob crash.
 
@@ -98,6 +99,41 @@ Changing these buys nothing, so the kit leaves them alone:
 - **Kernel governors** — the kernel is LZO-compressed, so its governor list
   can't be read statically. The battery module probes the running kernel and
   falls back `conservative → ondemand → powersave`.
+
+## services.jar — signature spoofing is already there
+
+The ROM is **odexed** (`/system/framework/oat/arm/services.{odex,vdex,art}`), so
+patching `classes.dex` inside `services.jar` alone would be ignored at runtime
+anyway. It turns out none of that is necessary.
+
+Disassembling with baksmali:
+
+```bash
+unzip -q services.jar classes.dex
+java -cp baksmali.jar:libs/* org.jf.baksmali.Main d classes.dex -o smali   # 4702 classes
+grep -rn "FAKE_PACKAGE_SIGNATURE" smali/
+```
+
+`com/android/server/pm/PackageManagerService.smali` contains the complete microG
+patch as `private mayFakeSignature(PackageParser$Package, PackageInfo, Set)`:
+it checks the caller holds `android.permission.FAKE_PACKAGE_SIGNATURE`, requires
+`targetSdkVersion > 22`, reads the `fake-signature` value out of the app's
+meta-data, and builds a new `Signature` from it. It is **not dead code** — there
+is a live call site at line 25603 on the `generatePackageInfo` path.
+
+The permission itself is declared in `framework-res.apk`:
+
+```bash
+strings -el fwres/AndroidManifest.xml | grep FAKE_PACKAGE
+# )android.permission.FAKE_PACKAGE_SIGNATURE
+```
+
+**Correction to an earlier conclusion in this kit.** The first pass reported
+"no signature spoofing, microG needs the NanoDroid patcher". That came from
+running `strings` over the **compressed** APK, and then over the extracted
+manifest in UTF-8 only. Android's binary XML stores its string pool in
+**UTF-16LE**, so the permission is invisible without `strings -el`. microG runs
+on this ROM natively — no patcher, no framework rewriting.
 
 ## Verify the changes actually landed
 

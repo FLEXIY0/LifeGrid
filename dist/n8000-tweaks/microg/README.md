@@ -1,70 +1,90 @@
 # microG on LineageOS 16 (GT-N8000)
 
-## Read this before installing — it may not be what you want
+## Good news: this ROM already supports signature spoofing
 
-This ROM ships with **no Google apps and no Google Play Services at all**
-(verified against the build's `/system/app` + `/system/priv-app`).
+An earlier version of this file said you needed the NanoDroid patcher. **That
+was wrong.** Disassembling the ROM's `services.jar` shows the microG signature
+spoofing patch is already compiled in:
 
-That matters: microG is a *lightweight replacement* for Play Services. It is a
-big battery win **compared to full GApps** — but compared to *nothing*, it is a
-net battery **cost**. It adds a background service, push sockets and location
-plumbing that currently do not exist on this device.
+```
+smali/com/android/server/pm/PackageManagerService.smali
 
-So:
+  .method private mayFakeSignature(PackageParser$Package, PackageInfo, Set)PackageInfo
+      const-string v0, "android.permission.FAKE_PACKAGE_SIGNATURE"
+      ...  targetSdkVersion > 22
+      const-string p3, "fake-signature"        <- read from app meta-data
+      new-instance v1, Landroid/content/pm/Signature;
+```
+
+and it is actually reached — there is a live call site at
+`PackageManagerService.smali:25603`, on the `generatePackageInfo` path.
+
+The matching permission is declared in `framework-res.apk`:
+
+```
+$ strings -el fwres/AndroidManifest.xml | grep FAKE_PACKAGE
+)android.permission.FAKE_PACKAGE_SIGNATURE
+```
+
+*Why the first check missed it:* `strings` was run over the **compressed** APK,
+and then over the manifest in UTF-8 only. Android's binary XML keeps its string
+pool in **UTF-16LE**, so the permission is invisible unless you use
+`strings -el`. Both halves of the patch are present.
+
+**So: no NanoDroid, no services.jar patching, no boot-time framework rewriting.
+Install microG and it works.**
+
+## Read this before installing anyway
+
+This ROM ships with **no Google apps and no Play Services at all** (verified
+against `/system/app` and `/system/priv-app`).
+
+microG is a lightweight *replacement* for Play Services. Versus full GApps it is
+a large battery win — but versus *nothing*, which is what you have, it is a net
+battery **cost**: it adds a background service, push sockets and location
+plumbing that currently do not exist.
 
 | Your situation | Recommendation |
 |----------------|----------------|
-| You want the lightest, longest-lasting tablet and use F-Droid / APKs | **Do not install microG.** You are already at the optimum. |
-| Some app you need refuses to run without Play Services, or you want push notifications | Install microG — it is by far the lightest way to get that. |
-| You want the real Play Store / paid apps | You need full GApps (pico), not microG — heavier. |
+| You want the lightest, longest-running tablet and use F-Droid / plain APKs | **Skip microG.** You are already at the optimum. |
+| An app you need refuses to start without Play Services, or you want push notifications | Install microG — by far the lightest way to get that. |
+| You want the real Play Store and paid apps | You need GApps (pico), not microG — heavier. |
 
-## The blocker: this ROM has no signature spoofing
-
-microG only works if the OS lets it impersonate the Play Services signature.
-Stock LineageOS deliberately does **not** ship that patch, and this build is no
-exception — `framework-res.apk`'s manifest contains no
-`android.permission.FAKE_PACKAGE_SIGNATURE` (checked directly in the ROM image).
-
-Installing microG **without** fixing this gives you a permanently broken
-"self-check failed" screen and apps still refusing to start.
-
-You have two working routes:
-
-### Route A — NanoDroid patcher (recommended, systemless)
-
-`NanoDroid-patcher` rewrites `services.jar` at boot as a Magisk module, so the
-ROM partition is untouched and removing the module fully reverts it.
-
-1. Download from <https://downloads.nanolx.org/NanoDroid/Stable/> :
-   - `NanoDroid-microG-<ver>.zip`  (microG + F-Droid + companions)
-   - `NanoDroid-patcher-<ver>.zip` (signature-spoofing patcher)
-2. Flash **both** in Magisk → Modules → Install from storage, patcher last.
-3. Reboot. Expect the first boot after patching to be slow (services.jar is
-   recompiled).
-4. Open **microG Settings → Self-Check**: every box must be ticked, especially
-   *"System supports signature spoofing"*.
-
-### Route B — fetch microG yourself
-
-`fetch-microg.sh` (next to this file) downloads the current official microG
-APKs from the microG GitHub releases and verifies each SHA-256. It does **not**
-solve signature spoofing — you still need Route A's patcher, or a ROM built
-with the spoof patch.
-
-## After it works — keep it light
+## Install
 
 ```bash
-# Only enable what you actually need. Each one costs battery.
-# microG Settings -> Google device registration : ON  (needed for push)
-#                 -> Cloud Messaging (GCM)      : ON  only if you need push
-#                 -> Google SafetyNet           : OFF
-#                 -> UnifiedNlp backends        : pick ONE, or none
+./fetch-microg.sh --install     # downloads official APKs, prints SHA-256, adb installs
 ```
 
-Location without Google: install a single UnifiedNlp backend (e.g. *Déjà Vu*
-offline, or *Mozilla Location Service*) — not several, they all run.
+Or by hand: install **GmsCore** (`com.google.android.gms`) and, for legacy
+push, **GsfProxy**. Then reboot.
+
+## Verify
+
+Open **microG Settings → Self-Check**. The line that matters is:
+
+> ☑ System supports signature spoofing
+
+If it is unticked, grant the permission explicitly:
+**Settings → Apps → microG Services Core → Permissions → allow
+"Spoof package signature"**, then reboot and re-check.
+
+## Keep it light
+
+Each of these costs battery — enable only what you actually need:
+
+```
+microG Settings
+  Google device registration ....... ON only if you need push
+  Cloud Messaging (GCM) ............ ON only if you need push
+  Google SafetyNet ................. OFF
+  UnifiedNlp backends .............. pick exactly ONE, or none
+```
+
+For location without Google, install a single backend (e.g. *Déjà Vu* offline,
+or *Mozilla Location Service*). Installing several means all of them run.
 
 ## Reverting
 
-Remove the NanoDroid modules in Magisk and reboot. Nothing was written to
-`/system`.
+Uninstall the microG APKs. Nothing was written to `/system`, and no framework
+file was modified — the spoofing support was already part of the ROM.

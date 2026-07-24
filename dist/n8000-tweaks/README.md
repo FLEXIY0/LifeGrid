@@ -31,8 +31,10 @@ unpacked (brotli → `sdat2img` → ext4, read with `debugfs`) and checked:
   it to 768 MB.
 - **`/data` and `/cache` are already f2fs** — the common "convert to f2fs"
   advice is a no-op on this build.
-- **No signature spoofing**: `framework-res.apk` has no
-  `FAKE_PACKAGE_SIGNATURE`, so microG needs the NanoDroid patcher. See
+- **Signature spoofing is already built in**: `services.jar` contains the
+  microG `mayFakeSignature()` patch with a live call site, and
+  `framework-res.apk` declares `android.permission.FAKE_PACKAGE_SIGNATURE`.
+  microG runs natively — **no NanoDroid patcher needed**. See
   `microg/README.md`.
 - **No GApps and no Google Play Services at all** in the ROM — it is already
   the lightest possible baseline.
