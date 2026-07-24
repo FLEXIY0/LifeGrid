@@ -10,10 +10,35 @@ reverts by removing the module (or running the restore script) and rebooting.**
 
 | Item | What it does | How to apply |
 |------|--------------|--------------|
-| `magisk-n8000-battery/` | conservative CPU governor, zRAM (768 MB), VM tuning, aggressive Doze, boot-time `fstrim` | flash as Magisk module |
+| `magisk-n8000-battery/` | gentle CPU governor, zRAM 400→768 MB, VM tuning, aggressive Doze, boot-time `fstrim` | flash as Magisk module |
 | `magisk-n8000-props/` | systemless `build.prop` overrides that actually matter on A9 (less Wi-Fi scanning, less logging) | flash as Magisk module |
+| `extras.sh` | full AOT compile, reduced animations, Wi-Fi power saving, fstrim | `adb shell < extras.sh` |
 | `debloat.sh` | removes unused system apps **per-user** (APK stays in ROM) | `adb shell < debloat.sh` |
 | `restore-debloat.sh` | undoes the debloat | `adb shell < restore-debloat.sh` |
+| `microg/` | microG guidance + fetcher — **read it first, it may not be worth installing** | see `microg/README.md` |
+| `IDEAS.md` | what can still genuinely be upgraded on this hardware | reading |
+
+## What was verified inside the ROM image
+
+These are not guesses — the `lineage-16.0-20201207-HTML6405-n8000.zip` image was
+unpacked (brotli → `sdat2img` → ext4, read with `debugfs`) and checked:
+
+- **Magisk is already baked into `/system/app`** — the device is rooted out of
+  the box, so everything here can be systemless.
+- **zRAM is already wired** in the ROM's fstab at 400 MB
+  (`zramsize=419430400`), gated by `persist.sys.zram_enabled`. The battery
+  module enables that prop and grows it to 768 MB.
+- **`/data` and `/cache` are already f2fs** — the common "convert to f2fs"
+  advice is a no-op on this build.
+- **No signature spoofing**: `framework-res.apk` has no
+  `FAKE_PACKAGE_SIGNATURE`, so microG needs the NanoDroid patcher. See
+  `microg/README.md`.
+- **No GApps and no Google Play Services at all** in the ROM — it is already
+  the lightest possible baseline.
+- The kernel is LZO-compressed, so its governor list can't be read statically;
+  the battery module therefore picks the first governor the running kernel
+  actually offers (`conservative` → `ondemand` → `powersave`) and no-ops if
+  none exist.
 
 ## Install the Magisk modules
 

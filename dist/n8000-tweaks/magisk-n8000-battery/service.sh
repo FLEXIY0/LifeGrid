@@ -8,12 +8,19 @@ until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
 sleep 8
 
 # ---------------------------------------------------------------------------
-# 1) CPU governor -> conservative on every core (gentler ramp = less power)
+# 1) CPU governor -> first available of: conservative, ondemand, powersave.
+#    The stock kernel is LZO-compressed so its governor list can't be read
+#    statically; this picks whatever the running kernel actually offers and
+#    silently leaves the governor alone if none of them are present.
 # ---------------------------------------------------------------------------
 for CPU in /sys/devices/system/cpu/cpu[0-9]*/cpufreq; do
-    if grep -qw conservative "$CPU/scaling_available_governors" 2>/dev/null; then
-        echo conservative > "$CPU/scaling_governor" 2>/dev/null
-    fi
+    [ -f "$CPU/scaling_available_governors" ] || continue
+    AVAIL=$(cat "$CPU/scaling_available_governors" 2>/dev/null)
+    for G in conservative ondemand powersave; do
+        case " $AVAIL " in
+            *" $G "*) echo "$G" > "$CPU/scaling_governor" 2>/dev/null; break ;;
+        esac
+    done
 done
 
 # conservative tunables live per-policy; try both common layouts
@@ -28,8 +35,12 @@ for T in /sys/devices/system/cpu/cpu*/cpufreq/conservative \
 done
 
 # ---------------------------------------------------------------------------
-# 2) zRAM — compressed swap in RAM. Big win on a 2 GB device.
+# 2) zRAM — the ROM's own fstab already defines zram0 at 400 MB, gated by
+#    persist.sys.zram_enabled. We make sure it's enabled, then grow it to
+#    768 MB, which suits a 2 GB device better.
 # ---------------------------------------------------------------------------
+setprop persist.sys.zram_enabled 1 2>/dev/null
+
 if [ -e /sys/block/zram0/disksize ]; then
     # tear down any existing zram before resizing
     for S in /dev/block/zram0 /dev/zram0; do
