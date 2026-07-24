@@ -35,12 +35,10 @@ for T in /sys/devices/system/cpu/cpu*/cpufreq/conservative \
 done
 
 # ---------------------------------------------------------------------------
-# 2) zRAM — the ROM's own fstab already defines zram0 at 400 MB, gated by
-#    persist.sys.zram_enabled. We make sure it's enabled, then grow it to
-#    768 MB, which suits a 2 GB device better.
+# 2) zRAM — the ROM already brings zram0 up at 400 MB (fstab + unconditional
+#    swapon_all in init.target.rc). Nothing to "enable"; we just grow it to
+#    768 MB, which suits 2 GB better. Must swapoff before resizing.
 # ---------------------------------------------------------------------------
-setprop persist.sys.zram_enabled 1 2>/dev/null
-
 if [ -e /sys/block/zram0/disksize ]; then
     # tear down any existing zram before resizing
     for S in /dev/block/zram0 /dev/zram0; do

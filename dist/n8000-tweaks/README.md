@@ -25,9 +25,10 @@ unpacked (brotli → `sdat2img` → ext4, read with `debugfs`) and checked:
 
 - **Magisk is already baked into `/system/app`** — the device is rooted out of
   the box, so everything here can be systemless.
-- **zRAM is already wired** in the ROM's fstab at 400 MB
-  (`zramsize=419430400`), gated by `persist.sys.zram_enabled`. The battery
-  module enables that prop and grows it to 768 MB.
+- **zRAM is already active out of the box**: `init.target.rc` calls
+  `swapon_all` unconditionally and the fstab defines zram0 at 400 MB
+  (`zramsize=419430400`). Nothing gates it — the battery module simply grows
+  it to 768 MB.
 - **`/data` and `/cache` are already f2fs** — the common "convert to f2fs"
   advice is a no-op on this build.
 - **No signature spoofing**: `framework-res.apk` has no

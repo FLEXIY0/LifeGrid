@@ -1,13 +1,41 @@
-# Applied systemless via Magisk resetprop at boot. Remove module + reboot to revert.
-# Only props that have a REAL effect on Android 9 / this SoC are here. No cargo-cult.
+# Applied systemless via Magisk resetprop at post-fs-data (before zygote).
+# Remove the module + reboot to revert. Every value below overrides something
+# the ROM actually sets — verified by reading the shipped build.prop and
+# default.prop out of the ROM image. See ../FINDINGS.md for the reasoning.
 
-# --- Wi-Fi: scan far less often in the background (measurable idle-battery win) ---
-wifi.supplicant_scan_interval=180
+# --- Backlight floor -------------------------------------------------------
+# ROM ships ro.lcd_min_brightness=20. On an LCD the backlight is the single
+# biggest consumer, and 20 is brighter than this panel needs in a dark room.
+# Lowering the floor makes the bottom of the brightness slider actually dim.
+ro.lcd_min_brightness=4
 
-# --- Cut kernel/radio logging overhead (writes + CPU wakeups) ---
+# --- lowmemorykiller --------------------------------------------------------
+# ROM ships ro.lmk.upgrade_pressure=40 (AOSP default is 60). At 40 % memory
+# pressure lmkd starts escalating kills — on a 2 GB device with 400-768 MB of
+# zram that means apps get killed while there is still usable compressed RAM.
+# Back to 60 so multitasking survives; zram absorbs the pressure instead.
+ro.lmk.upgrade_pressure=60
+
+# --- dex2oat parallelism ----------------------------------------------------
+# default.prop pins dex2oat to a SINGLE thread on a quad-core SoC, which makes
+# app installs and post-update dexopt take far longer than necessary. Two
+# threads roughly halves that while keeping peak RAM bounded on 2 GB.
+dalvik.vm.dex2oat-threads=2
+dalvik.vm.image-dex2oat-threads=2
+
+# --- Wi-Fi background scanning ---------------------------------------------
+# ROM already sets 180 (an earlier 240 in system.prop is overridden by 180 in
+# ADDITIONAL_BUILD_PROPERTIES). 180 was therefore a no-op to "set" — this
+# actually raises it.
+wifi.supplicant_scan_interval=300
+
+# --- HWUI texture cache -----------------------------------------------------
+# The ROM's hwui block is a low-RAM *phone* profile (texture_cache_size=8).
+# This panel is 1280x800, so an 8 MB texture cache thrashes: textures get
+# evicted and re-uploaded, which costs GPU time and battery. 16 MB is still
+# frugal but stops the churn. Drop this line if you'd rather have the RAM.
+ro.hwui.texture_cache_size=16
+
+# --- Logging overhead -------------------------------------------------------
 logd.logpersistd.enable=false
 persist.log.tag=W
-ro.ril.disable.power.collapse=0
-
-# --- Let the platform sleep the modem/idle sooner ---
-pm.sleep_mode=1
