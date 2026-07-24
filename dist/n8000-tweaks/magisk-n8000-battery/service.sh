@@ -101,10 +101,33 @@ echo 70   > /proc/sys/vm/dirty_background_ratio  2>/dev/null
 echo 3000 > /proc/sys/vm/dirty_expire_centisecs  2>/dev/null   # batch writeback
 
 # ---------------------------------------------------------------------------
-# 5) Aggressive Doze — this is a Settings value, NOT a build.prop property
+# 5) Idle behaviour. These are Settings values, NOT build.prop properties.
+#
+#    Every key below was extracted from THIS ROM's compiled framework rather
+#    than copied from a guide:
+#      DeviceIdleController$Constants, AlarmManagerService$Constants and
+#      BatterySaverPolicy in services.jar (baksmali). Unknown keys are silently
+#      ignored by KeyValueListParser, so a typo would just do nothing.
 # ---------------------------------------------------------------------------
+
+# 5a) DEEP doze — kicks in only once the tablet is genuinely stationary.
+#     Most published "doze tweaks" stop here, which is why they underdeliver.
 settings put global device_idle_constants \
-"inactive_to=60000,sensing_to=0,locating_to=0,location_accuracy=20.0,motion_inactive_to=0,idle_after_inactive_to=0,idle_pending_to=60000,max_idle_pending_to=120000,idle_pending_factor=2.0,idle_to=900000,max_idle_to=21600000,idle_factor=2.0,min_time_to_alarm=600000,max_temp_app_whitelist_duration=10000,mms_temp_app_whitelist_duration=10000,sms_temp_app_whitelist_duration=10000" 2>/dev/null
+"inactive_to=60000,sensing_to=0,locating_to=0,location_accuracy=20.0,motion_inactive_to=0,idle_after_inactive_to=0,idle_pending_to=60000,max_idle_pending_to=120000,idle_pending_factor=2.0,idle_to=900000,max_idle_to=21600000,idle_factor=2.0,min_time_to_alarm=600000,max_temp_app_whitelist_duration=10000,mms_temp_app_whitelist_duration=10000,sms_temp_app_whitelist_duration=10000,\
+light_after_inactive_to=30000,light_pre_idle_to=60000,light_idle_to=300000,light_max_idle_to=900000,light_idle_factor=2.0,light_idle_maintenance_min_budget=30000,light_idle_maintenance_max_budget=120000,min_light_maintenance_time=10000,min_deep_maintenance_time=30000,notification_whitelist_duration=15000,wait_for_unlock=false" 2>/dev/null
+#     ^ the light_* family is the half that actually governs a tablet which is
+#       picked up and put down all day: deep doze needs long stillness, light
+#       doze starts 30 s after the screen goes off.
+
+# 5b) App Standby buckets — how long an app that you rarely open must wait
+#     before its alarms may fire. Stock lets rare apps wake the device often.
+settings put global alarm_manager_constants \
+"min_futurity=10000,min_interval=60000,allow_while_idle_short_time=30000,allow_while_idle_long_time=1800000,standby_working_delay=3600000,standby_frequent_delay=14400000,standby_rare_delay=86400000" 2>/dev/null
+
+# 5c) Make Battery Saver actually aggressive when you switch it on.
+#     gps_mode=1 turns the GPS radio off entirely while the screen is off.
+settings put global battery_saver_constants \
+"force_all_apps_standby=true,force_background_check=true,optional_sensors_disabled=true,vibration_disabled=true,launch_boost_disabled=true,fullbackup_deferred=true,keyvaluebackup_deferred=true,adjust_brightness_disabled=false,adjust_brightness_factor=0.5,gps_mode=1" 2>/dev/null
 
 settings put global wifi_scan_always_enabled 0 2>/dev/null
 settings put global ble_scan_always_enabled  0 2>/dev/null
