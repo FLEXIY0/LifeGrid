@@ -135,7 +135,46 @@ manifest in UTF-8 only. Android's binary XML stores its string pool in
 **UTF-16LE**, so the permission is invisible without `strings -el`. microG runs
 on this ROM natively — no patcher, no framework rewriting.
 
+## CORRECTION: the undervolt conclusion below was drawn from the wrong tree
+
+The section that follows concluded that CPU undervolting works out of the box.
+**It does not on this ROM.** The kernel analysed was
+`html6405/android_kernel_samsung_n80xx`, which only carries a `lineage-14.1`
+branch. LineageOS 16 for this device is built from a *different* repository,
+`html6405/android_kernel_samsung_smdk4412`, branch `lineage-16.0`. Checking the
+correct branch:
+
+```bash
+curl -s .../smdk4412/lineage-16.0/arch/arm/mach-exynos/cpufreq.c | grep -c UV_mV_table
+# 0
+curl -s .../smdk4412/lineage-16.0/drivers/cpufreq/cpufreq.c      | grep -n UV_mV_table
+# (nothing)
+```
+
+There is no `UV_mV_table` and no `cpufreq_freq_attr_rw` registration. **CPU
+undervolting is not available without rebuilding the kernel**, and the
+`magisk-n8000-undervolt` module has been removed from this kit rather than
+left to silently no-op.
+
+Same mistake, same cause, for the memory bus: `int_volt_table` / `mif_volt_table`
+exist in the 14.1 tree but **not** in `lineage-16.0`. `busfreq_opp_exynos4.c`
+there exposes 11 attributes — `up_threshold`, `idle_threshold`,
+`max_cpu_threshold`, `dmc_max_threshold`, `ppmu_threshold`, `load_history_size`,
+`cpu_slope_size`, `curr_freq`, `time_in_state`, `lock_list`, `up_cpu_threshold`
+— all thresholds, no voltages. Bus DVFS can be *tuned*; it cannot be undervolted.
+
+Findings that were re-verified against the correct branch and **do** hold:
+`cpuidle enable_mask`, `mali_dvfs_control`, `lowmemorykiller minfree`,
+`CONFIG_MACH_MIDAS=y`, `CONFIG_MALI_VER_R3P2=y`, and the absence of
+`CONFIG_GPU_CLOCK_CONTROL`.
+
+Lesson worth keeping: *verify which repository and branch actually built the
+image before trusting anything read out of a source tree.*
+
+---
+
 ## Kernel: undervolting is already supported — no rebuild needed
+### (superseded — see the correction above)
 
 The obvious "next level" was rebuilding the kernel to gain undervolting. It
 turned out to be unnecessary. Cloning the maintainer's kernel tree

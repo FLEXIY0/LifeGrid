@@ -58,6 +58,41 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 1b) cpuidle: turn AFTR back on.
+#
+#     enable_mask bits (arch/arm/mach-exynos/cpuidle-exynos4.c:105-107):
+#       0x1 = AFTR (ARM off, top-run)   0x2 = LPA (low power audio)
+#     The generic default is 3, but the file guards it with
+#     #if defined(CONFIG_MACH_MIDAS) -> 2, and this device builds with
+#     CONFIG_MACH_MIDAS=y. So AFTR ships DISABLED and the SoC never enters its
+#     deepest idle state. This is the largest idle-battery lever found.
+#
+#     Wi-Fi-only tablet has no modem, which is where AFTR instability on 4412
+#     is usually reported. Revert: echo 2 (or remove the module).
+# ---------------------------------------------------------------------------
+CPUIDLE=/sys/module/cpuidle_exynos4/parameters/enable_mask
+[ -w "$CPUIDLE" ] && echo 3 > "$CPUIDLE" 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# 1c) Mali-400 GPU DVFS step control.
+#
+#     /sys/module/mali/parameters/mali_dvfs_control (exynos4_pmm.c:254)
+#       0   = normal automatic DVFS  (default, left alone here)
+#       160/266/350/440/533 = PIN to the highest step <= this clock
+#     Any other value matches no step and freezes the level - never use one.
+#
+#     Voltages still come from the ASV table, so pinning is safe. Set 160 for a
+#     big idle/reading saving at the cost of frame rate; 533 for games.
+# ---------------------------------------------------------------------------
+MALI_DVFS=/sys/module/mali/parameters/mali_dvfs_control
+MALI_STEP=0     # <- 0 auto | 160 battery | 533 performance
+if [ -w "$MALI_DVFS" ]; then
+    case "$MALI_STEP" in
+        0|160|266|350|440|533) echo "$MALI_STEP" > "$MALI_DVFS" 2>/dev/null ;;
+    esac
+fi
+
+# ---------------------------------------------------------------------------
 # 2) zRAM — the ROM already brings zram0 up at 400 MB (fstab + unconditional
 #    swapon_all in init.target.rc). Nothing to enable; just grow it to 768 MB,
 #    which suits 2 GB better. Must swapoff before resizing.
@@ -89,7 +124,65 @@ for Q in /sys/block/mmcblk*/queue; do
     # eMMC has no seek penalty and no useful reordering depth
     echo 0   > "$Q/rotational"    2>/dev/null
     echo 0   > "$Q/add_random"    2>/dev/null   # don't feed the entropy pool
+    echo 0   > "$Q/iostats"       2>/dev/null   # per-request accounting overhead
+    echo 128 > "$Q/nr_requests"   2>/dev/null
+
+    # Fallback only: the scheduler is normally set via persist.sys.io.scheduler
+    # (see magisk-n8000-props), which init applies ROM-natively to every block
+    # device including the SD card. This catches the case where that failed.
+    if [ -f "$Q/scheduler" ]; then
+        case "$(cat "$Q/scheduler" 2>/dev/null)" in
+            *"[cfq]"*)
+                for S in row deadline noop; do
+                    grep -q "$S" "$Q/scheduler" 2>/dev/null && \
+                        { echo "$S" > "$Q/scheduler" 2>/dev/null; break; }
+                done ;;
+        esac
+    fi
 done
+
+# eMMC clock gating delay (drivers/mmc/core/host.c:297). Default 3 ms; a longer
+# delay means fewer clock on/off cycles under mixed load.
+for H in /sys/class/mmc_host/mmc0/clkgate_delay; do
+    [ -w "$H" ] && echo 10 > "$H" 2>/dev/null
+done
+
+# ---------------------------------------------------------------------------
+# 3b) f2fs — /data and /cache are f2fs on this ROM, but its behaviour is stock.
+#     Knobs come from fs/f2fs/ (ipu_policy, gc_*, ram_thresh, ...).
+# ---------------------------------------------------------------------------
+for F in /sys/fs/f2fs/*; do
+    [ -d "$F" ] || continue
+    # In-place updates cut write amplification: 0x2 = LOW_SPACE | 0x4 = UTIL
+    echo 6     > "$F/ipu_policy"        2>/dev/null
+    echo 70    > "$F/min_ipu_util"      2>/dev/null
+    # Push garbage collection towards idle time instead of foreground writes
+    echo 1     > "$F/gc_idle"           2>/dev/null
+    echo 60000 > "$F/gc_min_sleep_time" 2>/dev/null
+    echo 90000 > "$F/gc_max_sleep_time" 2>/dev/null
+    echo 4     > "$F/max_small_discards" 2>/dev/null
+done
+
+# ---------------------------------------------------------------------------
+# 3c) Memory-bus DVFS (busfreq). This branch exposes thresholds but NOT the
+#     int/mif voltage tables, so bus undervolt is not available - only how
+#     eagerly the bus clocks up. Higher thresholds = stays low longer.
+# ---------------------------------------------------------------------------
+for B in /sys/devices/platform/exynos-busfreq /sys/devices/platform/busfreq; do
+    [ -d "$B" ] || continue
+    echo 40 > "$B/up_threshold"      2>/dev/null
+    echo 30 > "$B/idle_threshold"    2>/dev/null
+    echo 12 > "$B/load_history_size" 2>/dev/null
+done
+
+# ---------------------------------------------------------------------------
+# 3d) lowmemorykiller minfree, in 4 KB pages.
+#     lmkd (userspace) writes these at start from ro.lmk.*, so this must run
+#     AFTER it - which late_start + the boot wait above guarantees.
+#     Values below keep more free memory for cache on a 2 GB device.
+# ---------------------------------------------------------------------------
+LMK=/sys/module/lowmemorykiller/parameters/minfree
+[ -w "$LMK" ] && echo "12288,15360,18432,21504,24576,30720" > "$LMK" 2>/dev/null
 
 # ---------------------------------------------------------------------------
 # 4) VM tuning — lean toward RAM economy and fewer flash writes
@@ -131,6 +224,45 @@ settings put global battery_saver_constants \
 
 settings put global wifi_scan_always_enabled 0 2>/dev/null
 settings put global ble_scan_always_enabled  0 2>/dev/null
+
+# 5d) Network statistics. NetworkStatsService polls and persists to /data on a
+#     30-second cadence by default - a steady trickle of eMMC writes and
+#     wakeups for data almost nobody reads. Keys taken from
+#     com/android/server/net/NetworkStatsService.smali.
+settings put global netstats_poll_interval        1800000 2>/dev/null
+settings put global netstats_uid_persist_bytes    2097152 2>/dev/null
+settings put global netstats_dev_persist_bytes    2097152 2>/dev/null
+settings put global netstats_augment_enabled            0 2>/dev/null
+settings put global netstats_sample_enabled             0 2>/dev/null
+
+# 5e) Captive-portal probing fires on every Wi-Fi association. 0 disables it.
+#     Set to 1 if you use public hotspots that need the login page to pop up.
+settings put global captive_portal_mode 0 2>/dev/null
+
+# 5f) Sync retries. exemption_temp_whitelist_duration_in_seconds is the window
+#     during which a syncing app is lifted out of Doze - 600 s stock is huge.
+settings put global sync_manager_constants \
+"initial_sync_retry_time_in_seconds=60,retry_time_increase_factor=3.0,max_sync_retry_time_in_seconds=7200,max_retries_with_app_standby_exemption=2,exemption_temp_whitelist_duration_in_seconds=60" 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# 5g) LineageOS-specific settings.
+#
+#     These live in the LineageSettings provider, not AOSP's, so `settings put`
+#     alone may not reach them. Try both paths; whichever is wrong just fails
+#     silently. All were confirmed present in the system image.
+# ---------------------------------------------------------------------------
+lput() {   # lput <namespace> <key> <value>
+    settings put "$1" "$2" "$3" 2>/dev/null
+    content insert --uri "content://lineagesettings/$1" \
+        --bind name:s:"$2" --bind value:s:"$3" >/dev/null 2>&1
+}
+
+lput system wake_when_plugged_or_unplugged 0   # screen must not wake on charge
+lput system system_profiles_enabled        0   # drops the ProfileManager service
+lput system network_traffic_mode           0   # status-bar traffic meter polls
+lput system volbtn_music_controls          0   # long-press polling on vol keys
+lput system notification_light_pulse       0
+lput system touchscreen_gesture_haptic_feedback 0
 
 # ---------------------------------------------------------------------------
 # 6) fstrim — /data and /cache are f2fs here; keep write performance up

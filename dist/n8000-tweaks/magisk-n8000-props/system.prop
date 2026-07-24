@@ -29,8 +29,30 @@ dalvik.vm.image-dex2oat-threads=2
 # "setting" 180 would have been a no-op. This actually raises it.
 wifi.supplicant_scan_interval=300
 
+# --- I/O scheduler ----------------------------------------------------------
+# The kernel default is cfq, which is built for rotating disks and pure
+# overhead on eMMC. The kernel compiles in seven schedulers, and the ROM even
+# ships the machinery to switch (/system/etc/init/lineage-iosched.rc) - it just
+# never sets the property. Setting it here makes init apply row to EVERY block
+# device, including the SD card, with the right SELinux contexts.
+persist.sys.io.scheduler=row
+
+# --- Background service starts ----------------------------------------------
+# ActiveServices reads this directly (ActiveServices.smali:207) and it takes
+# priority over the low_ram path. This is the single genuinely useful effect of
+# ro.config.low_ram=true, obtained WITHOUT the losses that flag brings
+# (see FINDINGS.md for the full 17-call-site analysis).
+ro.config.max_starting_bg=1
+
+# --- ART / dexopt -----------------------------------------------------------
+# speed-profile keeps hot code compiled while using far less /data than speed.
+pm.dexopt.install=speed-profile
+pm.dexopt.bg-dexopt=speed-profile
+pm.dexopt.boot=verify
+pm.dexopt.inactive=verify
+dalvik.vm.dex2oat-swap=true
+
 # --- Logging overhead -------------------------------------------------------
-logd.logpersistd.enable=false
 persist.log.tag=W
 
 # ---------------------------------------------------------------------------

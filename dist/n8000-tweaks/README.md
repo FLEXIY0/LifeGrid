@@ -12,8 +12,7 @@ reverts by removing the module (or running the restore script) and rebooting.**
 |------|--------------|--------------|
 | `magisk-n8000-battery/` | gentle CPU governor, zRAM 400→768 MB, VM tuning, aggressive Doze, boot-time `fstrim` | flash as Magisk module |
 | `magisk-n8000-props/` | systemless `build.prop` overrides that actually matter on A9 (less Wi-Fi scanning, less logging) | flash as Magisk module |
-| `magisk-n8000-undervolt/` | relative CPU undervolt via the kernel's `UV_mV_table`; kernel-clamped, resets on reboot | flash as Magisk module |
-| `uv-check.sh` | read-only: does this kernel expose undervolting, which governor, zram state | `adb shell < uv-check.sh` |
+| `uv-check.sh` | read-only probe: cpuidle/AFTR, Mali DVFS, I/O scheduler, f2fs, busfreq, lmk, thermals | `adb shell < uv-check.sh` |
 | `extras.sh` | full AOT compile, reduced animations, Wi-Fi power saving, fstrim | `adb shell < extras.sh` |
 | `debloat.sh` | removes unused system apps **per-user** (APK stays in ROM) | `adb shell < debloat.sh` |
 | `restore-debloat.sh` | undoes the debloat | `adb shell < restore-debloat.sh` |
@@ -33,6 +32,16 @@ unpacked (brotli → `sdat2img` → ext4, read with `debugfs`) and checked:
   it to 768 MB.
 - **`/data` and `/cache` are already f2fs** — the common "convert to f2fs"
   advice is a no-op on this build.
+- **AFTR — the SoC's deepest idle state — ships disabled.** `enable_mask`
+  defaults to `2` (LPA only) because the device builds with
+  `CONFIG_MACH_MIDAS=y`. The battery module sets `3`. Largest idle-battery
+  lever in this kit.
+- **The I/O scheduler is `cfq`** — built for rotating disks, pure overhead on
+  eMMC — even though the kernel compiles in seven schedulers and the ROM ships
+  the switching machinery (`lineage-iosched.rc`) unused. Now set to `row`.
+- **Use build `20201207`** (the one this kit targets). The later `20210322`
+  build has a known "access denied" regression on internal storage; the
+  documented fix is reverting to exactly this build.
 - **Signature spoofing is already built in**: `services.jar` contains the
   microG `mayFakeSignature()` patch with a live call site, and
   `framework-res.apk` declares `android.permission.FAKE_PACKAGE_SIGNATURE`.

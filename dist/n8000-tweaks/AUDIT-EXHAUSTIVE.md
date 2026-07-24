@@ -60,6 +60,23 @@ So the effective `trim_cache_percent` is **100**, not the 50 the maintainer
 appears to have intended. Anyone tuning memory behaviour on this ROM has to
 target the `ro.vendor.qti.` names — editing the plain ones changes nothing.
 
+### Limitation of this method — false negatives
+
+Counting occurrences only works for properties whose **name exists as a literal
+string** in some binary. It gives a false "dead" verdict when the name is
+assembled at runtime.
+
+Concrete case: `PackageManagerServiceCompilerMapping` builds its key as
+`"pm.dexopt." + reason`. The image therefore contains the bare prefix
+`pm.dexopt.` and almost none of the full names — yet `pm.dexopt.install`,
+`pm.dexopt.bg-dexopt`, `pm.dexopt.boot`, `pm.dexopt.first-boot`,
+`pm.dexopt.ab-ota` and `pm.dexopt.inactive` are all genuinely read.
+
+So the "36 dead" list above is reliable for the `ro.sys.fw.*`, `ro.hwui.*` and
+`config.*` families (plain literals looked up directly), but **`pm.dexopt.shared`
+should not be treated as dead** — that entry was a false negative. When a
+property belongs to a family with a shared prefix, check for the prefix too.
+
 ### Most-referenced properties (for orientation)
 
 ```

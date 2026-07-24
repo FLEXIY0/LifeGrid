@@ -1,6 +1,0 @@
-id=n8000_undervolt
-name=N8000 CPU Undervolt (relative, kernel-clamped)
-version=v1.0
-versionCode=1
-author=lifegrid
-description=Applies a relative CPU undervolt via the kernel's UV_mV_table sysfs interface. Not persistent - a reboot always restores stock voltages. Offset is editable in service.sh.
