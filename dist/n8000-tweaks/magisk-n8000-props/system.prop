@@ -1,0 +1,13 @@
+# Applied systemless via Magisk resetprop at boot. Remove module + reboot to revert.
+# Only props that have a REAL effect on Android 9 / this SoC are here. No cargo-cult.
+
+# --- Wi-Fi: scan far less often in the background (measurable idle-battery win) ---
+wifi.supplicant_scan_interval=180
+
+# --- Cut kernel/radio logging overhead (writes + CPU wakeups) ---
+logd.logpersistd.enable=false
+persist.log.tag=W
+ro.ril.disable.power.collapse=0
+
+# --- Let the platform sleep the modem/idle sooner ---
+pm.sleep_mode=1

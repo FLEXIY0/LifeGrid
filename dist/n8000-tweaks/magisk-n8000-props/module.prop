@@ -1,0 +1,6 @@
+id=n8000_props
+name=N8000 System Props (Wi-Fi scan + logging trims)
+version=v1.0
+versionCode=1
+author=lifegrid
+description=Systemless build.prop overrides that actually do something on Android 9: longer Wi-Fi supplicant scan interval and reduced logging. Reversible.

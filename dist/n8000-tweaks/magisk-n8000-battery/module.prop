@@ -1,0 +1,6 @@
+id=n8000_battery
+name=N8000 Battery (zRAM + conservative governor + aggressive Doze)
+version=v1.0
+versionCode=1
+author=lifegrid
+description=zRAM, conservative CPU governor, VM tuning, fstrim and aggressive Doze for Samsung Galaxy Note 10.1 (GT-N8000). Systemless, reversible.
