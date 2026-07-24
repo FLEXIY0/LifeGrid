@@ -135,6 +135,48 @@ manifest in UTF-8 only. Android's binary XML stores its string pool in
 **UTF-16LE**, so the permission is invisible without `strings -el`. microG runs
 on this ROM natively — no patcher, no framework rewriting.
 
+## Kernel: undervolting is already supported — no rebuild needed
+
+The obvious "next level" was rebuilding the kernel to gain undervolting. It
+turned out to be unnecessary. Cloning the maintainer's kernel tree
+([`html6405/android_kernel_samsung_n80xx`](https://github.com/html6405/android_kernel_samsung_n80xx),
+which does carry `arch/arm/configs/lineageos_n8000_defconfig`) shows the UV
+sysfs interface is already implemented and registered **read-write**:
+
+```c
+arch/arm/mach-exynos/cpufreq.c:888   ssize_t show_UV_mV_table(...)
+arch/arm/mach-exynos/cpufreq.c:903   ssize_t store_UV_mV_table(...)
+drivers/cpufreq/cpufreq.c:656        cpufreq_freq_attr_rw(UV_mV_table);
+```
+
+`store_UV_mV_table()` clamps every value it receives to
+`CPU_UV_MV_MIN = 600000 uV` … `CPU_UV_MV_MAX = 1500000 uV`
+(`include/linux/cpufreq.h:28-29`) and rounds to the PMIC's 12.5 mV step, so an
+out-of-range number cannot reach the regulator. The table lives in RAM only —
+**a reboot always restores the stock, ASV-calibrated voltages.**
+
+That is why `magisk-n8000-undervolt` applies a *relative* offset: Exynos uses
+ASV, so every individual chip ships with different factory voltages. Copying
+absolute values from another tablet is how people make their device unstable;
+the module reads your chip's own table and subtracts from it.
+
+Parsing was tested against the exact format `show_UV_mV_table()` prints
+(`"%dmhz: %d mV\n"`): 7 levels in → 7 values out, arithmetic correct, and even
+at −75 mV nothing approaches the 600 mV floor.
+
+**Residual uncertainty, stated plainly:** the tree that is public is the
+`lineage-14.1` branch, and the 16.0 `boot.img` kernel is LZO-compressed, so the
+node's presence in *your* running kernel could not be confirmed statically. Run
+`uv-check.sh` on the device — the module no-ops safely if the node is absent.
+
+### Why a full kernel rebuild was rejected
+
+- The payoff (undervolt) is already available with zero risk, as above.
+- `pegasusq` with hotplug is already the right governor for this SoC.
+- A rebuilt 3.0.x kernel needs a GCC 4.x-era ARM toolchain, and — decisively —
+  **it cannot be boot-tested here.** A kernel that compiles is not a kernel that
+  boots. Flashing an untested one means a bootloop that only Odin can undo.
+
 ## Verify the changes actually landed
 
 ```bash

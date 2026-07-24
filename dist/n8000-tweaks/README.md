@@ -12,6 +12,8 @@ reverts by removing the module (or running the restore script) and rebooting.**
 |------|--------------|--------------|
 | `magisk-n8000-battery/` | gentle CPU governor, zRAM 400→768 MB, VM tuning, aggressive Doze, boot-time `fstrim` | flash as Magisk module |
 | `magisk-n8000-props/` | systemless `build.prop` overrides that actually matter on A9 (less Wi-Fi scanning, less logging) | flash as Magisk module |
+| `magisk-n8000-undervolt/` | relative CPU undervolt via the kernel's `UV_mV_table`; kernel-clamped, resets on reboot | flash as Magisk module |
+| `uv-check.sh` | read-only: does this kernel expose undervolting, which governor, zram state | `adb shell < uv-check.sh` |
 | `extras.sh` | full AOT compile, reduced animations, Wi-Fi power saving, fstrim | `adb shell < extras.sh` |
 | `debloat.sh` | removes unused system apps **per-user** (APK stays in ROM) | `adb shell < debloat.sh` |
 | `restore-debloat.sh` | undoes the debloat | `adb shell < restore-debloat.sh` |
