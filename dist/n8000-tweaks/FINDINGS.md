@@ -26,25 +26,60 @@ Worth saying plainly — this is a well-built ROM, not a sloppy one:
 
 ## What is left un-tuned, and what this kit does about it
 
+## Verification method — does anything actually *read* the property?
+
+A build.prop line only does something if some binary looks it up. Counting how
+often a property name occurs in the whole 1.4 GB image separates real knobs
+from decoration:
+
+```bash
+grep -a -o "ro\.lmk\.upgrade_pressure" system.img | wc -l   # 2 -> build.prop + lmkd  => REAL
+grep -a -o "ro\.lcd_min_brightness"    system.img | wc -l   # 1 -> only build.prop    => DEAD
+```
+
+| Property | Occurrences | Verdict |
+|----------|-------------|---------|
+| `ro.lmk.upgrade_pressure` | 2 | real (lmkd reads it) |
+| `dalvik.vm.dex2oat-threads` | 4 | real |
+| `wifi.supplicant_scan_interval` | 7 | real |
+| `ro.sys.fw.bg_apps_limit` | 3 | real |
+| `ro.vendor.qti.sys.fw.*` | 13 | **real** — LineageOS carries the CAF patches, so the framework reads these even on Exynos |
+| `ro.lcd_min_brightness` | 1 | **dead** |
+| `ro.hwui.texture_cache_size` | 1 | **dead** (HWUI dropped these in Android 9) |
+| `persist.sys.purgeable_assets` | 1 | dead |
+| `persist.sys.force_highendgfx` | 1 | dead |
+
+This pass removed two tweaks from an earlier version of this kit that looked
+sensible but were writing to properties nobody reads.
+
+## What is left un-tuned, and what this kit does about it
+
 | # | Finding (from the image) | Change | Why it matters |
 |---|--------------------------|--------|----------------|
-| 1 | `ro.lcd_min_brightness=20` | → `4` | Backlight dominates power draw on this LCD. The floor is set higher than the panel needs, so the dim end of the slider is wasted. Biggest single battery lever here. |
-| 2 | `ro.lmk.upgrade_pressure=40` (AOSP default 60) | → `60` | lmkd escalates kills at 40 % pressure — on 2 GB **with zram already active**, apps die while compressed RAM is still available. This is the main cause of "everything reloads when I switch apps". |
-| 3 | `dalvik.vm.dex2oat-threads=1` on a quad-core SoC | → `2` | Single-threaded dexopt makes installs and post-update compilation crawl. Two threads keeps peak RAM bounded. |
-| 4 | zram fixed at 400 MB | → `768 MB` | 400 MB is conservative for 2 GB. Battery module resizes at boot. |
-| 5 | `ro.hwui.texture_cache_size=8` | → `16` | The whole hwui block is a low-RAM **phone** profile applied to a 1280×800 tablet; an 8 MB texture cache evicts and re-uploads constantly, burning GPU time. |
+| 1 | Governor is **pegasusq**, and the kit was switching it away | **keep pegasusq, tune it** | pegasusq does CPU **hotplug** — it parks idle cores, the biggest CPU-side saving on this quad-core. Switching to conservative/ondemand/powersave would have *lost* that. Now `up_threshold`, `freq_step`, `cpu_up/down_rate`, `io_is_busy`, `ignore_nice_load`, `sampling_rate` are tuned toward idling instead. |
+| 2 | `ro.lmk.upgrade_pressure=40` (AOSP default 60) | → `60` + `kill_heaviest_task=true` | lmkd escalates kills at 40 % pressure — on 2 GB **with zram active**, apps die while compressed RAM still has headroom. Main cause of "everything reloads when I switch back". |
+| 3 | `dalvik.vm.dex2oat-threads=1` on a quad-core SoC | → `2` | Single-threaded dexopt makes installs and post-update compilation crawl. |
+| 4 | zram fixed at 400 MB | → `768 MB` | 400 MB is conservative for 2 GB. |
+| 5 | **`read_ahead_kb` set twice, to different values**: 512 in `init.smdk4x12.rc`, 256 in `init.target.rc` | pinned to `128` | Whichever script runs last silently wins — a genuine conflict. Large read-ahead evicts useful page cache on a 2 GB device for data never used. |
 | 6 | `wifi.supplicant_scan_interval` effectively 180 | → `300` | Less idle radio wake-up. |
-| 7 | No aggressive Doze config | `device_idle_constants` | Set at runtime by the battery module — Doze is a Settings value, **not** a build.prop property. |
+| 7 | No aggressive Doze config | `device_idle_constants` | Doze is a Settings value, **not** a build.prop property. |
+| 8 | **`gps.conf` lists the maintainer's Austrian NTP servers first** (`asynchronos.iiss.at`, `ntp.inode.at`, `*.at.pool.ntp.org`) | global `pool.ntp.org` first | GPS seeds its clock over NTP before a fix. Outside Austria those are avoidable round-trips — slower time-to-first-fix and longer radio-on. Replaced systemlessly; the rest of the file is byte-for-byte the original. |
 
 ## Cosmetic / dead weight (flagged, deliberately not "fixed")
 
 Changing these buys nothing, so the kit leaves them alone:
 
-- **Qualcomm properties on an Exynos device**: `ro.vendor.qti.am.reschedule_service`,
-  `ro.vendor.qti.sys.fw.*`, `persist.camera.HAL3.enabled=1`. Copy-paste from a
-  Snapdragon tree; inert on Exynos 4412.
+- **Qualcomm-named properties**: `ro.vendor.qti.sys.fw.*` look like Snapdragon
+  copy-paste, but they occur **13 times** in the image — LineageOS carries the
+  CAF process-management patches, so the framework really does read them on
+  Exynos too. They are doing their job; left alone.
+  (`persist.camera.HAL3.enabled=1` genuinely is inert here.)
 - **`persist.sys.force_highendgfx=true`** is commented "force high-end graphics
-  in low ram mode", but `ro.config.low_ram=false` — so it does nothing.
+  in low ram mode", but `ro.config.low_ram=false` — and it occurs once, so
+  nothing reads it anyway.
+- **`AgpsServerIp=3232235555`** in `gps.conf` decodes to `192.168.1.35` — a LAN
+  address left over from someone's bench. Harmless placeholder; kept as-is so
+  the file stays otherwise identical to stock.
 - **`ro.sys.fw.bg_apps_limit`** is set twice (32, then 16). Last wins; harmless.
 - **`wifi.supplicant_scan_interval`** is likewise set twice (240, then 180).
 - **`ro.config.small_battery=true`** on a ~7000 mAh tablet looks like a
