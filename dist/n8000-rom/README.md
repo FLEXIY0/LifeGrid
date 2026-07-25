@@ -44,6 +44,27 @@ Added: `persist.sys.io.scheduler=row`, `ro.config.max_starting_bg=1`,
 **In `/system/etc/gps.conf`** — global `pool.ntp.org` instead of the
 maintainer's Austrian NTP servers, which slow time-to-first-fix elsewhere.
 
+**In `/system/usr/idc/sec_e-pen.idc`** — the biggest single defect found in this
+ROM, and it sits on the device's best hardware. The stock file was two lines:
+
+```
+touch.deviceType = pointer
+touch.orientationAware = 1
+```
+
+`pointer` describes an *indirect* device — a mouse or trackpad. This is an
+absolute-position **Wacom G5SP** digitizer with **1024 pressure levels**
+(`WACOM_MAX_PRESSURE = 1023`), and Android has a dedicated `stylus` type for
+exactly that. With `pointer`, apps checking `MotionEvent.TOOL_TYPE_STYLUS` never
+see a stylus and a mouse cursor trails the pen — the complaint that recurs in
+this device's Lineage threads. There was also **no pressure calibration at all**.
+The patch sets `deviceType = stylus` and states the scale explicitly:
+`pressure.scale = 0.000978` (1/1023).
+
+> If you have seen the widely-copied XDA value `0.000244` — that is 1/4096, for
+> digitizers with 4096 levels. On this hardware it would waste three quarters of
+> the range.
+
 Nothing is **removed** from `build.prop`. The audit found 36 properties no
 binary in `/system` reads, but that scan cannot see apps in `/data`, and
 properties like `ro.build.characteristics` are read by third-party apps —

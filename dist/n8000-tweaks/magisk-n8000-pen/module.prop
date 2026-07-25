@@ -1,0 +1,6 @@
+id=n8000_pen
+name=N8000 Wacom Pen (133 Hz sampling + silo power saving)
+version=v1.0
+versionCode=1
+author=lifegrid
+description=Raises the Wacom G5SP digitizer to its maximum 133 Hz sampling rate and powers it down while the pen is docked. Systemless and reversible; a reboot restores stock behaviour.

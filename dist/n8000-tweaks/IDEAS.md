@@ -16,13 +16,33 @@ The rest of the tablet aged; the pen did not.
 
 Which means the highest-value upgrade is to stop asking the CPU to do work:
 
-- **Use it as a pressure-sensitive graphics tablet for your PC.** Apps like
-  *VirtualTablet* or *GfxTablet* turn it into a Wacom-style input device over
-  USB/Wi-Fi for Photoshop, Krita, GIMP, Blender. A comparable standalone Wacom
-  still costs real money. The tablet does almost no computing here — the PC
-  does — so weak silicon stops mattering.
+Concretely, from the kernel source: the digitizer is a **Wacom G5SP**
+(`CONFIG_EPEN_WACOM_G5SP=y`) reporting **1024 pressure levels**
+(`WACOM_MAX_PRESSURE = 1023`) and able to sample at up to **133 Hz**.
+
+**The stock ROM under-configures it, and that is now fixed** — see
+`../n8000-rom/patch/sec_e-pen.idc`. The shipped
+`/system/usr/idc/sec_e-pen.idc` declared `touch.deviceType = pointer`, i.e.
+Android treated an absolute-position stylus digitizer as a *mouse*, and set no
+pressure calibration at all. The ROM patch corrects both. Fix that first —
+otherwise everything below is working against a mis-declared input device.
+
+- **Use it as a pressure-sensitive graphics tablet for your PC.** Options, with
+  the caveat that none were tested on Android 9 here:
+  - **VirtualTablet** — advertises Wacom-digitizer Galaxy Note support with
+    pressure; needs a small server on the PC.
+  - **Weylus** — **no app to install**: it serves a page you open in the
+    tablet's browser. Pressure and multi-touch only when the host is Linux;
+    other hosts still get low-latency absolute pen tracking.
+  - **GfxTablet** — unmaintained upstream; several forks exist.
+  A comparable standalone Wacom still costs real money, and the tablet does
+  almost no computing in this role — the PC does — so weak silicon stops
+  mattering.
 - **Note-taking / PDF markup / sheet music.** Local, offline, no services
   needed. This is the workload it is still genuinely good at.
+- **Pen tuning** lives in `magisk-n8000-pen/`: 133 Hz sampling, plus powering
+  the digitizer down while the pen is docked in its silo (the ROM leaves it
+  powered).
 
 ## 2. Make the network do the computing
 

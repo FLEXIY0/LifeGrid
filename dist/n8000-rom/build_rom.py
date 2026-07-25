@@ -58,6 +58,8 @@ package_extract_file("patch/build.prop", "/system/build.prop");
 set_metadata("/system/build.prop", "uid", 0, "gid", 0, "mode", 0600, "capabilities", 0x0, "selabel", "u:object_r:system_file:s0");
 package_extract_file("patch/gps.conf", "/system/etc/gps.conf");
 set_metadata("/system/etc/gps.conf", "uid", 0, "gid", 0, "mode", 0644, "capabilities", 0x0, "selabel", "u:object_r:system_file:s0");
+package_extract_file("patch/sec_e-pen.idc", "/system/usr/idc/sec_e-pen.idc");
+set_metadata("/system/usr/idc/sec_e-pen.idc", "uid", 0, "gid", 0, "mode", 0644, "capabilities", 0x0, "selabel", "u:object_r:system_file:s0");
 unmount("/system");
 '''
 
@@ -205,7 +207,8 @@ def build_zip(base_zip, boot_path, out_path):
             dst.writestr(zi, data)
             added += 1
         for name, arc in (("build.prop", "patch/build.prop"),
-                          ("gps.conf", "patch/gps.conf")):
+                          ("gps.conf", "patch/gps.conf"),
+                          ("sec_e-pen.idc", "patch/sec_e-pen.idc")):
             dst.write(os.path.join(patch_dir, name), arc,
                       compress_type=zipfile.ZIP_DEFLATED)
             added += 1

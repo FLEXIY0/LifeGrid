@@ -79,3 +79,23 @@ echo "adj     : $(cat /sys/module/lowmemorykiller/parameters/adj 2>/dev/null)"
 echo
 echo "=== thermal (read-only) ==="
 cat /sys/devices/platform/s5p-tmu/curr_temp 2>/dev/null || echo n/a
+
+echo
+echo "=== Wacom pen ==="
+for C in /sys/class/sec/sec_epen /sys/devices/virtual/sec/sec_epen; do
+    [ -d "$C" ] || continue
+    echo "node: $C"
+    echo "  sampling_rate : $(cat "$C/epen_sampling_rate" 2>/dev/null || echo 'write-only')"
+    echo "  saving_mode   : $(cat "$C/epen_saving_mode" 2>/dev/null || echo n/a)"
+    echo "  firm_version  : $(cat "$C/epen_firm_version" 2>/dev/null || echo n/a)"
+    echo "  connection    : $(cat "$C/epen_connection" 2>/dev/null || echo n/a)"
+    break
+done
+
+echo "-- pressure range reported to Android (want max 1023) --"
+getevent -lp 2>/dev/null | grep -A2 -i "sec_e-pen" | grep -i "ABS_PRESSURE" \
+    || echo "run: getevent -lp | grep -A20 sec_e-pen"
+
+echo "-- device class (want 'stylus', stock ROM says 'pointer') --"
+dumpsys input 2>/dev/null | grep -i -A6 "sec_e-pen" | grep -iE "Classes|deviceType" \
+    || echo "run: dumpsys input | grep -A10 sec_e-pen"
