@@ -42,6 +42,22 @@ sys.path.insert(0, os.path.join(HERE, "tools"))
 import bootimg                                          # noqa: E402
 import cpio                                             # noqa: E402
 
+# Fennec F-Droid, armeabi-v7a build. Chosen because the stock browsers (Via,
+# Jelly) are thin wrappers around Android 9's WebView - that ancient engine is
+# why they render modern sites badly, not their UI. Fennec ships its own Gecko
+# engine and supports uBlock Origin, which on hardware this slow is the single
+# biggest speed-up available.
+#
+# Cromite was the obvious alternative and was rejected: it requires Android 10+.
+# Mull is discontinued. Verified from F-Droid: "requires Android 8.0 or newer",
+# and version code 1530000 is the armeabi-v7a variant (checked by listing the
+# APK's lib/ directory - 1530010 is x86_64).
+BROWSER_NAME = "Fennec"
+BROWSER_APK = "org.mozilla.fennec_fdroid_1530000.apk"
+BROWSER_URL = "https://f-droid.org/repo/" + BROWSER_APK
+BROWSER_SHA256 = "7c8535610d663d4c5acdbf20d8095aabbac987e549eaf150d4d20ba307afad40"
+BROWSER_SIZE = 121_927_680      # approximate; only used for the progress hint
+
 BASE_NAME = "lineage-16.0-20201207-HTML6405-n8000.zip"
 BASE_URL = ("https://archive.org/download/"
             "lineage-16.0-20201207-HTML6405-n8000/" + BASE_NAME)
@@ -61,6 +77,16 @@ set_metadata("/system/etc/gps.conf", "uid", 0, "gid", 0, "mode", 0644, "capabili
 package_extract_file("patch/sec_e-pen.idc", "/system/usr/idc/sec_e-pen.idc");
 set_metadata("/system/usr/idc/sec_e-pen.idc", "uid", 0, "gid", 0, "mode", 0644, "capabilities", 0x0, "selabel", "u:object_r:system_file:s0");
 unmount("/system");
+'''
+
+# Appended inside the same mount block when a browser is bundled.
+# package_extract_dir is used rather than package_extract_file because it
+# creates the destination directory - the same pattern the stock script already
+# uses for "install". set_metadata_recursive then labels the whole tree.
+BROWSER_SCRIPT = '''ui_print("Installing Fennec (Gecko engine), removing Via...");
+delete_recursive("/system/app/Via");
+package_extract_dir("browser", "/system/app");
+set_metadata_recursive("/system/app/Fennec", "uid", 0, "gid", 0, "dmode", 0755, "fmode", 0644, "capabilities", 0x0, "selabel", "u:object_r:system_file:s0");
 '''
 
 BOOT_FLASH_LINE = 'package_extract_file("boot.img", "/dev/block/mmcblk0p5");'
@@ -183,7 +209,43 @@ def build_boot(base_zip, workdir):
     return out
 
 
-def build_zip(base_zip, boot_path, out_path):
+def sha256sum(path, chunk=1 << 20):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def fetch_browser(dest):
+    """Download the Fennec APK and verify it. Returns the path, or None."""
+    if not os.path.exists(dest):
+        print("downloading %s (~116 MiB) ..." % BROWSER_APK)
+        print("  %s" % BROWSER_URL)
+
+        def hook(count, bs, total):
+            if total > 0:
+                sys.stdout.write("\r  %3d%%" % min(100, count * bs * 100 // total))
+                sys.stdout.flush()
+
+        urllib.request.urlretrieve(BROWSER_URL, dest, reporthook=hook)
+        print()
+    got = sha256sum(dest)
+    if got != BROWSER_SHA256:
+        raise SystemExit("browser APK sha256 mismatch\n  got      %s\n  expected %s\n"
+                         "Delete %s and retry." % (got, BROWSER_SHA256, dest))
+    print("  sha256 %s OK" % got[:16])
+    # Cheap sanity check that this really is the 32-bit ARM build.
+    with zipfile.ZipFile(dest) as z:
+        abis = {n.split("/")[1] for n in z.namelist()
+                if n.startswith("lib/") and n.count("/") > 1}
+    if abis != {"armeabi-v7a"}:
+        raise SystemExit("wrong ABI in browser APK: %s (need armeabi-v7a)" % abis)
+    print("  ABI armeabi-v7a confirmed")
+    return dest
+
+
+def build_zip(base_zip, boot_path, out_path, browser_apk=None):
     print("  assembling %s" % os.path.basename(out_path))
     patch_dir = os.path.join(HERE, "patch")
     added = 0
@@ -197,7 +259,12 @@ def build_zip(base_zip, boot_path, out_path):
                 text = data.decode()
                 if BOOT_FLASH_LINE not in text:
                     raise SystemExit("boot flash line not found in updater-script")
-                text = text.replace(BOOT_FLASH_LINE, PATCH_SCRIPT + BOOT_FLASH_LINE)
+                block = PATCH_SCRIPT
+                if browser_apk:
+                    # goes before unmount("/system"), inside the same mount
+                    block = block.replace('unmount("/system");',
+                                          BROWSER_SCRIPT + 'unmount("/system");')
+                text = text.replace(BOOT_FLASH_LINE, block + BOOT_FLASH_LINE)
                 data = text.encode()
             # keep each entry's original storage method (system.new.dat.br is
             # stored, not deflated, so streaming installers stay happy)
@@ -212,6 +279,12 @@ def build_zip(base_zip, boot_path, out_path):
             dst.write(os.path.join(patch_dir, name), arc,
                       compress_type=zipfile.ZIP_DEFLATED)
             added += 1
+        if browser_apk:
+            # An APK is already a compressed zip; storing it avoids spending
+            # minutes re-deflating 116 MiB for no gain.
+            dst.write(browser_apk, "browser/%s/%s.apk" % (BROWSER_NAME, BROWSER_NAME),
+                      compress_type=zipfile.ZIP_STORED)
+            added += 1
     print("    %d entries written" % added)
 
 
@@ -221,6 +294,10 @@ def main():
     ap.add_argument("--out", default=OUT_NAME)
     ap.add_argument("--skip-verify", action="store_true")
     ap.add_argument("--keep-work", action="store_true")
+    ap.add_argument("--no-browser", action="store_true",
+                    help="don't bundle Fennec and leave Via in place")
+    ap.add_argument("--browser-apk",
+                    help="use a browser APK you already downloaded")
     args = ap.parse_args()
 
     base = args.base or os.path.join(os.getcwd(), BASE_NAME)
@@ -233,10 +310,15 @@ def main():
     else:
         verify_base(base)
 
+    browser = None
+    if not args.no_browser:
+        browser = fetch_browser(args.browser_apk
+                                or os.path.join(os.getcwd(), BROWSER_APK))
+
     work = tempfile.mkdtemp(prefix="n8000-build-")
     try:
         boot = build_boot(base, work)
-        build_zip(base, boot, args.out)
+        build_zip(base, boot, args.out, browser)
     finally:
         if args.keep_work:
             print("work dir kept: %s" % work)

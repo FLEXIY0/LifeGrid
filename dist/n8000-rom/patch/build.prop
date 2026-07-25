@@ -176,6 +176,22 @@ ro.expect.recovery_id=0x2c846dc9c0272a85727f60eafc4b19c34ef93cfc0000000000000000
 # deleting them would risk app-visible behaviour for no measurable gain.
 # Only four existing values were changed; the rest is additive.
 #
+# USB. default.prop ships persist.sys.usb.config=none, and init.usb.rc does
+#   on boot && property:persist.sys.usb.config=*
+#       setprop sys.usb.config ${persist.sys.usb.config}
+# with the "none" handler calling `stop adbd`. So the device comes up with no
+# USB function at all - no MTP, no ADB - until the framework's UsbDeviceManager
+# boots and sets one. That self-corrects on a healthy boot, but if the ROM ever
+# hangs or bootloops before the framework starts, USB is dead exactly when you
+# need adb to find out why.
+#
+# mtp,adb is handled by init.smdk4x12.usb.rc (idProduct 6860). persist.*
+# properties are re-read from /data once it mounts, so whatever you pick in
+# Settings still wins - this value only applies on a fresh flash, which is
+# precisely the case worth insuring. ro.adb.secure=1 is untouched, so a new
+# host still has to be authorised by RSA key.
+persist.sys.usb.config=mtp,adb
+#
 # I/O scheduler. The kernel default is cfq, built for rotating disks and pure
 # overhead on eMMC. /system/etc/init/lineage-iosched.rc already ships the
 # switching machinery and simply never sets this property. Going through it

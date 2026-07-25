@@ -65,6 +65,37 @@ The patch sets `deviceType = stylus` and states the scale explicitly:
 > digitizers with 4096 levels. On this hardware it would waste three quarters of
 > the range.
 
+**USB comes up dead on a fresh flash.** `default.prop` ships
+`persist.sys.usb.config=none`, and `init.usb.rc` copies that to
+`sys.usb.config` on boot, where the `none` handler calls `stop adbd`. So there
+is no MTP and no ADB until the framework's `UsbDeviceManager` starts and picks a
+mode. On a healthy boot that self-corrects — but if the ROM ever hangs before
+the framework comes up, USB is dead exactly when you need `adb` to find out
+why. The patch sets `persist.sys.usb.config=mtp,adb`, which
+`init.smdk4x12.usb.rc` handles (idProduct 6860). `persist.*` values are re-read
+from `/data` once it mounts, so your own USB choice in Settings still wins —
+this only covers the fresh-flash window. `ro.adb.secure=1` is untouched, so a
+new host still has to be authorised by RSA key.
+
+**A browser with a real engine.** Via and Jelly are 968 KB and 1.6 MB — that
+size is only possible because they are thin wrappers around Android 9's
+**WebView**. That ancient engine is why they render modern sites badly; the UI
+was never the problem. The build bundles **Fennec F-Droid** (armeabi-v7a) into
+`/system/app` and deletes Via.
+
+- Fennec ships its own **Gecko** engine and supports **uBlock Origin**, which on
+  hardware this slow is the single largest speed-up available — most of the work
+  a modern page costs this CPU is ads and trackers.
+- **Cromite was the obvious alternative and does not work here: it requires
+  Android 10+.** Mull is discontinued. Fennec's F-Droid listing states
+  "requires Android 8.0 or newer", so Android 9 is fine.
+- It is honestly *heavy* for 2 GB — Gecko is not small. Install uBlock Origin
+  first thing and keep few tabs open.
+- `/system` has 476 MB free, so the 116 MB APK costs otherwise-idle partition
+  space rather than your `/data`.
+- Don't want it? `python build_rom.py --no-browser` keeps Via and skips the
+  download.
+
 Nothing is **removed** from `build.prop`. The audit found 36 properties no
 binary in `/system` reads, but that scan cannot see apps in `/data`, and
 properties like `ro.build.characteristics` are read by third-party apps —
