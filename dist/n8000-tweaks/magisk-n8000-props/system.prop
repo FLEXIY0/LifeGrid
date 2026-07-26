@@ -52,6 +52,17 @@ pm.dexopt.boot=verify
 pm.dexopt.inactive=verify
 dalvik.vm.dex2oat-swap=true
 
+# --- Input latency (matters most for the pen) -------------------------------
+# SurfaceFlinger normally waits for a buffer's fence to signal before latching
+# it, costing roughly a frame. Latching unsignaled buffers shortens the path
+# from pen event to pixels - the single lever available for ink lag on a 60 Hz
+# panel with no touch prediction. Verified live in this image (the property is
+# referenced by surfaceflinger, not just declared).
+#
+# Trade-off: on rare occasions a frame can be latched before it is fully drawn,
+# which shows up as brief tearing. Remove this line if you ever see it.
+debug.sf.latch_unsignaled=1
+
 # --- Logging overhead -------------------------------------------------------
 persist.log.tag=W
 
